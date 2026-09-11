@@ -1,0 +1,104 @@
+services:
+  zammad-postgresql:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=zammad
+      - POSTGRES_PASSWORD=zammadpassword
+      - POSTGRES_DB=zammad_production
+    volumes:
+      - zammad-db-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    restart: always
+
+  zammad-redis:
+    image: redis:7-alpine
+    volumes:
+      - zammad-redis-data:/data
+    restart: always
+
+  zammad-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - zammad-elasticsearch-data:/usr/share/elasticsearch/data
+    restart: always
+
+  zammad-init:
+    image: zammad/zammad:latest
+    command: ["zammad-init"]
+    environment:
+      - ZAMMAD_DOCKER=true
+      - RAILS_SERVE_STATIC_FILES=true
+      - POSTGRESQL_HOST=zammad-postgresql
+      - POSTGRESQL_DB=zammad_production
+      - POSTGRESQL_USER=zammad
+      - POSTGRESQL_PASS=zammadpassword
+      - REDIS_URL=redis://zammad-redis:6379
+      - ELASTICSEARCH_HOST=zammad-elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    depends_on:
+      - zammad-postgresql
+      - zammad-redis
+      - zammad-elasticsearch
+
+  zammad-railsserver:
+    image: zammad/zammad:latest
+    command: ["zammad-railsserver"]
+    ports:
+      - "5052:3000"
+    environment:
+      - ZAMMAD_DOCKER=true
+      - RAILS_SERVE_STATIC_FILES=true
+      - POSTGRESQL_HOST=zammad-postgresql
+      - POSTGRESQL_DB=zammad_production
+      - POSTGRESQL_USER=zammad
+      - POSTGRESQL_PASS=zammadpassword
+      - REDIS_URL=redis://zammad-redis:6379
+      - ELASTICSEARCH_HOST=zammad-elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    depends_on:
+      zammad-init:
+        condition: service_completed_successfully
+
+  zammad-websocket:
+    image: zammad/zammad:latest
+    command: ["zammad-websocket"]
+    environment:
+      - ZAMMAD_DOCKER=true
+      - RAILS_SERVE_STATIC_FILES=true
+      - POSTGRESQL_HOST=zammad-postgresql
+      - POSTGRESQL_DB=zammad_production
+      - POSTGRESQL_USER=zammad
+      - POSTGRESQL_PASS=zammadpassword
+      - REDIS_URL=redis://zammad-redis:6379
+      - ELASTICSEARCH_HOST=zammad-elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    depends_on:
+      zammad-init:
+        condition: service_completed_successfully
+
+  zammad-worker:
+    image: zammad/zammad:latest
+    command: ["zammad-scheduler"]
+    environment:
+      - ZAMMAD_DOCKER=true
+      - RAILS_SERVE_STATIC_FILES=true
+      - POSTGRESQL_HOST=zammad-postgresql
+      - POSTGRESQL_DB=zammad_production
+      - POSTGRESQL_USER=zammad
+      - POSTGRESQL_PASS=zammadpassword
+      - REDIS_URL=redis://zammad-redis:6379
+      - ELASTICSEARCH_HOST=zammad-elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    depends_on:
+      zammad-init:
+        condition: service_completed_successfully
+
+volumes:
+  zammad-db-data:
+  zammad-redis-data:
+  zammad-elasticsearch-data:
